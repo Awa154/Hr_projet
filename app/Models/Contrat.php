@@ -5,16 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Admin extends Model
+class Contrat extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'user_id', 'poste_occupe',
+        'document_id', 'clause'
     ];
-    protected  $table = 'admin';
+    protected  $table = 'contrat';
 
-    public function user()
+    public function document()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Document::class);
     }
 }

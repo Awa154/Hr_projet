@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AccountCreated;
 use App\Models\Admin;
 use App\Models\Employe;
 use App\Models\Entreprise;
@@ -10,6 +11,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
@@ -26,7 +29,7 @@ class AuthController extends Controller
             //code...
             $input = $request->all();
             $validator = Validator::make($input, [
-                "email"=> "required|email",
+                "username"=> "required|string|unique:users,username",
                 "password"=> "required"
                 ]);
                 if ($validator->fails()) {
@@ -36,15 +39,15 @@ class AuthController extends Controller
                         "errors"=> $validator->errors(),
                         ],422);
                 }
-                if(Auth::attempt($request->only("email","password"))){
+                if(Auth::attempt($request->only("username","password"))){
                     return response()->json([
                         "status"=> false,
-                        "message"=> "Email ou mot de passe incorrect",
+                        "message"=> "Le nom d'utilisateur ou mot de passe incorrect",
                         "errors"=> $validator->errors(),
                         ],401);
                 }
 
-                $user=User::where("email", $request->email)->first();
+                $user=User::where("username", $request->username)->first();
                 return response()->json([
                     "status"=> true,
                     "message"=> "Vous etes maintenant connecté!",
@@ -66,8 +69,9 @@ class AuthController extends Controller
             //code...
             $input = $request->all();
             $validator = Validator::make($input, [
-                "nom"=> "required",
-                "prenom"=> "required",
+                "nom"=> "required|string",
+                "prenom"=> "required|string",
+                "username"=> "required|string|unique:users,username",
                 "email"=> "required|email|unique:users,email",
                 "adresse"=> "required",
                 "contact"=> "required|unique:users,contact",
@@ -115,13 +119,15 @@ class AuthController extends Controller
                     ]);
                     $user->entreprise()->save($entreprise);
                 }
-                
+
                 if ($user->usertype == 'admin') {
                     $admin = new Admin([
                         'poste_occupe' => $request->input('poste_occupe'),
                     ]);
                     $user->admin()->save($admin);
                 }
+
+                Mail::to($user->email)->send(new AccountCreated($user->username, $request->password));
                 return response()->json([
                     "status"=> true,
                     "message"=> "Compte créer avec succès!",

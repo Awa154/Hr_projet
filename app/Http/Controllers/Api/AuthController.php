@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\AccountCreated;
 use App\Models\Admin;
 use App\Models\Employe;
 use App\Models\Entreprise;
@@ -11,8 +10,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
@@ -29,7 +26,7 @@ class AuthController extends Controller
             //code...
             $input = $request->all();
             $validator = Validator::make($input, [
-                "username"=> "required|string|unique:users,username",
+                "username"=> "required",
                 "password"=> "required"
                 ]);
                 if ($validator->fails()) {
@@ -42,7 +39,7 @@ class AuthController extends Controller
                 if(Auth::attempt($request->only("username","password"))){
                     return response()->json([
                         "status"=> false,
-                        "message"=> "Le nom d'utilisateur ou mot de passe incorrect",
+                        "message"=> "Le nom d'utilisateur ou le mot de passe incorrect",
                         "errors"=> $validator->errors(),
                         ],401);
                 }
@@ -127,7 +124,6 @@ class AuthController extends Controller
                     $user->admin()->save($admin);
                 }
 
-                Mail::to($user->email)->send(new AccountCreated($user->username, $request->password));
                 return response()->json([
                     "status"=> true,
                     "message"=> "Compte créer avec succès!",
@@ -150,5 +146,73 @@ class AuthController extends Controller
             "message"=> "Vous etes maintenant connecté!",
             "date"=>$request->user(),
             ],200);
+    }
+
+    public function edit(Request $request){
+        try {
+            //code...
+            $input = $request->all();
+            $validator = Validator::make($input, [
+                "username"=> "required|string|unique:users,username",
+                "email"=> "required|email|unique:users,email",
+                "contact"=> "required|unique:users,contact",
+                ]);
+
+                if ($validator->fails()) {
+                    return response()->json([
+                        "status"=> false,
+                        "message"=> "Erreur de validation",
+                        "errors"=> $validator->errors(),
+                        ],422);
+                }
+                $request->user()->update($input);
+                return response()->json([
+                    " status"=> true,
+                    "message"=> "Modification apporté avec succès",
+                    "data"=> $request->user(),
+                    ], 422,);
+        } catch (\Throwable $th) {
+            //throw $th;
+            return response()->json([
+                "status"=> false,
+                "message"=> $th->getMessage()],500);
+        }
+    }
+
+    public function editPassword(Request $request){
+        try {
+            //code...
+            $input = $request->all();
+            $validator = Validator::make($input, [
+                "old_password"=> "required",
+                "new_password"=> "required|confirmed",
+                ]);
+
+                if ($validator->fails()) {
+                    return response()->json([
+                        "status"=> false,
+                        "message"=> "Erreur de validation",
+                        "errors"=> $validator->errors(),
+                        ],422);
+                }
+                if(!Hash::check($input["old_password"], $request->user()->password)){
+                    return response()->json([
+                        "status"=> false,
+                        "message"=> "L'ancien mot de passe est incorrect",
+                        ],401);
+                }
+                $input["password"] = Hash::make($input['new_password']);
+                $request->user()->update($input);
+                return response()->json([
+                    " status"=> true,
+                    "message"=> "Modification apporté avec succès",
+                    "data"=> $request->user(),
+                    ], 422,);
+        } catch (\Throwable $th) {
+            //throw $th;
+            return response()->json([
+                "status"=> false,
+                "message"=> $th->getMessage()],500);
+        }
     }
 }

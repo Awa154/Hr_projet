@@ -18,6 +18,10 @@ return new class extends Migration
             $table->integer('tmp_hsup');
             $table->unsignedBigInteger('document_id');
             $table->foreign('document_id')->references('id')->on('document');
+            $table->unsignedBigInteger('employe_id');
+            $table->foreign('employe_id')->references('id')->on('employe');
+            $table->unsignedBigInteger('entreprise_id');
+            $table->foreign('entreprise_id')->references('id')->on('entreprise');
             $table->timestamps();
         });
     }

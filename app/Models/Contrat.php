@@ -9,12 +9,22 @@ class Contrat extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'document_id', 'clause'
+        'document_id', 'entreprise_id', 'employe_id','clause'
     ];
     protected  $table = 'contrat';
 
     public function document()
     {
         return $this->belongsTo(Document::class);
+    }
+
+    public function entreprise()
+    {
+        return $this->belongsTo(Entreprise::class);
+    }
+
+    public function employe()
+    {
+        return $this->belongsTo(Employe::class);
     }
 }

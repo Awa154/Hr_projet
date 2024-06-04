@@ -9,12 +9,17 @@ class FichePaie extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'document_id', 'tmp_hjour', 'tmp_jmois', 'tmp_hsup'
+        'document_id','entreprise_id', 'employe_id', 'tmp_hjour', 'tmp_jmois', 'tmp_hsup'
     ];
     protected  $table = 'fichepaie';
 
     public function document()
     {
         return $this->belongsTo(Document::class);
+    }
+
+    public function employe()
+    {
+        return $this->belongsTo(Employe::class);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Contrat;
 use App\Models\Document;
 use App\Models\FichePaie;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class DocController extends Controller
@@ -19,12 +20,8 @@ class DocController extends Controller
                 "date_debut" => "required|date",
                 "date_fin" => "required|date",
                 "type_document" => "required|in:contrat,fiche_de_paie",
-                "nom_employeur" => "required|string",
-                "prenom_employeur" => "required|string",
-                "contact_employeur" => "required",
-                "nom_employe" => "required|string",
-                "prenom_employe" => "required|string",
-                "contact_employe" => "required",
+                "entreprise_id"=> "required|exists:entreprise,id",
+                "employe_id"=> "required|exists:employe,id",
                 "remuneration" => "required",
                 "status" => "required|in:actualiter,terminer,payer,impayer",
                 "clause" => "nullable|string",
@@ -45,7 +42,9 @@ class DocController extends Controller
 
             if ($document->type_document == 'contrat') {
                 $contrat = new Contrat([
-                    'clause' => $request->input('clause'),
+                    'entreprise_id' => $request->input('entreprise_id'),
+                    'employe_id' => $request->input('employe_id'),
+                    'clause' => $request->input('clause')
                 ]);
                 $document->contrat()->save($contrat);
             }
@@ -81,12 +80,8 @@ class DocController extends Controller
                 "date_debut" => "required|date",
                 "date_fin" => "required|date",
                 "type_document" => "required|in:contrat,fiche_de_paie",
-                "nom_employeur" => "required|string",
-                "prenom_employeur" => "required|string",
-                "contact_employeur" => "required",
-                "nom_employe" => "required|string",
-                "prenom_employe" => "required|string",
-                "contact_employe" => "required",
+                "entreprise_id"=> "required|exists:entreprise,id",
+                "employe_id"=> "required|exists:employe,id",
                 "remuneration" => "required",
                 "status" => "required|in:impayer,actualite,terminer,payer",
                 "clause" => "nullable|string",
@@ -108,6 +103,8 @@ class DocController extends Controller
 
             if ($document->type_document == 'contrat') {
                 $contratData = [
+                    'entreprise_id' => $request->input('entreprise_id'),
+                    'employe_id' => $request->input('employe_id'),
                     'clause' => $request->input('clause')
                 ];
                 if ($document->contrat) {
@@ -146,14 +143,31 @@ class DocController extends Controller
         }
     }
 
+    //Affichage pour l'admin
     public function contratActu()
     {
         try {
-            $documents = Document::select('d.date_debut', 'd.date_fin', 'd.nom_employeur', 'd.prenom_employeur', 'd.contact_employeur', 'd.nom_employe', 'd.prenom_employe', 'd.contact_employe', 'd.remuneration', 'd.status', 'c.clause')
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
                 ->from('document as d')
                 ->join('contrat as c', 'd.id', '=', 'c.document_id')
-                ->where('d.type_document', 'contrat')
+                ->where('type_document', 'contrat')
                 ->where('d.status', 'actualiter')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
                 ->get();
 
             return response()->json([
@@ -170,14 +184,160 @@ class DocController extends Controller
         }
     }
 
+    //Affichage pour utilisateur connecté (employé)
+    public function contratActuEntreprise()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('contrat as c', 'd.id', '=', 'c.document_id')
+                ->where('type_document', 'contrat')
+                ->where('d.status', 'actualiter')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('user_entreprise.id', $iduser) // Filtre par l'ID de l'entreprise connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Listes des contrats en cours",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour utilisateur connecté (employé)
+    public function contratActuEmploye()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('contrat as c', 'd.id', '=', 'c.document_id')
+                ->where('type_document', 'contrat')
+                ->where('d.status', 'actualiter')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('u.id', $iduser) // Filtre par l'ID de l'employé connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Listes des contrats en cours",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'admin
     public function contratTerminer()
     {
         try {
-            $documents = Document::select('d.date_debut', 'd.date_fin', 'd.nom_employeur', 'd.prenom_employeur', 'd.contact_employeur', 'd.nom_employe', 'd.prenom_employe', 'd.contact_employe', 'd.remuneration', 'd.status', 'c.clause')
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
                 ->from('document as d')
                 ->join('contrat as c', 'd.id', '=', 'c.document_id')
-                ->where('d.type_document', 'contrat')
+                ->where('type_document', 'contrat')
                 ->where('d.status', 'terminer')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+            ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des contrats terminés",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'utilisateur connecté (entreprise)
+    public function contratTerminerEntreprise()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('contrat as c', 'd.id', '=', 'c.document_id')
+                ->where('type_document', 'contrat')
+                ->where('d.status', 'actualiter')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('user_entreprise.id', $iduser) // Filtre par l'ID de l'entreprise connecté
                 ->get();
 
             return response()->json([
@@ -194,14 +354,76 @@ class DocController extends Controller
         }
     }
 
+    //Affichage pour l'utilisateur connecté (employé)
+    public function contratTerminerEmploye()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'c.clause',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('contrat as c', 'd.id', '=', 'c.document_id')
+                ->where('type_document', 'contrat')
+                ->where('d.status', 'actualiter')
+                ->join('employe as e', 'c.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'c.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('u.id', $iduser) // Filtre par l'ID de l'employé connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des contrats terminés",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'admin
     public function fichepaieNonPayer()
     {
         try {
-            $documents = Document::select('d.date_debut', 'd.date_fin', 'd.nom_employeur', 'd.prenom_employeur', 'd.contact_employeur', 'd.nom_employe', 'd.prenom_employe', 'd.contact_employe', 'd.remuneration', 'd.status', 'f.tmp_hjour','f.tmp_jmois', 'f.tmp_hsup')
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
                 ->from('document as d')
                 ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
-                ->where('d.type_document', 'fiche_de_paie')
+                ->where('type_document', 'fichepaie')
                 ->where('d.status', 'impayer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
                 ->get();
 
             return response()->json([
@@ -218,14 +440,207 @@ class DocController extends Controller
         }
     }
 
+    //Affichage pour l'utilisateur connecter (employé)
+    public function fichepaieNonPayerEmploye()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
+                ->where('type_document', 'fichepaie')
+                ->where('d.status', 'impayer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('u.id', $iduser) // Filtre par l'ID de l'employé connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des fiches de paies non payées",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'utilisateur connecter (entreprise)
+    public function fichepaieNonPayerEntreprise()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'e.domaine',
+                    'e.competence as competence_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
+                ->where('type_document', 'fichepaie')
+                ->where('d.status', 'impayer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('user_entreprise.id', $iduser) // Filtre par l'ID de l'employé connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des fiches de paies non payées",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'admin
     public function fichepaiePayer()
     {
         try {
-            $documents = Document::select('d.date_debut', 'd.date_fin', 'd.nom_employeur', 'd.prenom_employeur', 'd.contact_employeur', 'd.nom_employe', 'd.prenom_employe', 'd.contact_employe', 'd.remuneration', 'd.status', 'f.tmp_hjour','f.tmp_jmois', 'f.tmp_hsup')
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
                 ->from('document as d')
                 ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
-                ->where('d.type_document', 'fiche_de_paie')
+                ->where('type_document', 'fichepaie')
                 ->where('d.status', 'payer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des fiches de paies payées",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'utilisateur connecter (employe)
+    public function fichepaiePayerEmploye()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
+                ->where('type_document', 'fichepaie')
+                ->where('d.status', 'payer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('u.id', $iduser) // Filtre par l'ID de l'employé connecté
+                ->get();
+
+            return response()->json([
+                "status" => true,
+                "message" => "Liste des fiches de paies payées",
+                "data" => $documents,
+            ], 200);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                "status" => false,
+                "message" => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Affichage pour l'utilisateur connecté (entreprise)
+    public function fichepaiePayerEntreprise()
+    {
+        try {
+            $iduser = Auth::id(); // Récupère l'utilisateur connecté
+            $documents = Document::select('d.date_debut',
+                    'd.date_fin',
+                    'en.nom_entreprise',
+                    'user_entreprise.nom as nom_employeur',
+                    'user_entreprise.prenom as prenom_employeur',
+                    'user_entreprise.contact as contact_employeur',
+                    'u.nom as nom_employe', 'u.prenom as prenom_employe',
+                    'u.contact as contact_employe',
+                    'f.tmp_hjour',
+                    'f.tmp_jmois',
+                    'f.tmp_hsup',
+                    'd.remuneration',
+                    'd.status')
+                ->from('document as d')
+                ->join('fichepaie as f', 'd.id', '=', 'f.document_id')
+                ->where('type_document', 'fichepaie')
+                ->where('d.status', 'payer')
+                ->join('employe as e', 'f.employe_id', '=', 'e.id')
+                ->join('users as u', 'e.user_id', '=', 'u.id')
+                ->join('entreprise as en', 'f.entreprise_id', '=', 'en.id')
+                ->join('users as user_entreprise', 'en.user_id', '=', 'user_entreprise.id')
+                ->where('user_entreprise.id', $iduser) // Filtre par l'ID de l'employé connecté
                 ->get();
 
             return response()->json([

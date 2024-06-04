@@ -17,4 +17,14 @@ class Entreprise extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function contrat()
+    {
+        return $this->hasOne(Contrat::class);
+    }
+
+    public function fichepaie()
+    {
+        return $this->hasOne(FichePaie::class);
+    }
 }

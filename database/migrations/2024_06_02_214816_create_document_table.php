@@ -16,12 +16,6 @@ return new class extends Migration
             $table->date('date_debut');
             $table->date('date_fin');
             $table->string('type_document');
-            $table->string('nom_employeur');
-            $table->string('prenom_employeur');
-            $table->string('contact_employeur');
-            $table->string('nom_employe');
-            $table->string('prenom_employe');
-            $table->string('contact_employe');
             $table->string('remuneration');
             $table->string('status');
             $table->timestamps();

@@ -20,7 +20,7 @@ class ListeController extends Controller
                     'u.contact as contact_employe',
                     'u.adresse as adresse_employe',
                     'e.domaine',
-                    'u.annee_exp as annee_experience',
+                    'e.annee_exp as annee_experience',
                     'e.competence as competence_employe',
                     )
                 ->from('employe as e')
